@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-type Owner = "Maya" | "Jordan";
+type Owner = "McLovin" | "Casual";
 type EntryStatus = "alive" | "eliminated" | "inactive";
 
 type Entry = {
@@ -55,18 +55,6 @@ type SavedWorkspace = {
 
 const initialSetup: Setup = { poolName: "Last Survivor · 2026", week: "4", surviving: "4", poolSize: "12", deadline: "Sunday at 1:00 PM" };
 
-function loadWorkspace(): SavedWorkspace {
-  if (typeof window === "undefined") return {};
-  const stored = window.localStorage.getItem("survivor-pool-strategizer");
-  if (!stored) return {};
-  try {
-    return JSON.parse(stored) as SavedWorkspace;
-  } catch {
-    window.localStorage.removeItem("survivor-pool-strategizer");
-    return {};
-  }
-}
-
 const teamColors: Record<string, string> = {
   Bills: "#1f66c2",
   Chiefs: "#e31837",
@@ -81,11 +69,11 @@ const teamColors: Record<string, string> = {
 const teams = Object.keys(teamColors);
 
 const initialEntries: Entry[] = [
-  { id: "maya-1", name: "Maya · Main", owner: "Maya", status: "alive", used: ["Ravens", "Packers", "Dolphins"], pick: "Bills", confirmed: false },
-  { id: "maya-2", name: "Maya · Hedge", owner: "Maya", status: "alive", used: ["Lions", "Eagles"], pick: "Chiefs", confirmed: false },
-  { id: "jordan-1", name: "Jordan · Main", owner: "Jordan", status: "alive", used: ["Bills", "49ers", "Chiefs"], pick: "49ers", confirmed: false },
-  { id: "jordan-2", name: "Jordan · Longshot", owner: "Jordan", status: "alive", used: ["Dolphins"], pick: "Eagles", confirmed: false },
-  { id: "maya-3", name: "Maya · Eliminated", owner: "Maya", status: "eliminated", used: ["Bills", "Chiefs"], pick: "", confirmed: false },
+  { id: "mclovin-1", name: "McLovin · Main", owner: "McLovin", status: "alive", used: ["Ravens", "Packers", "Dolphins"], pick: "Bills", confirmed: false },
+  { id: "mclovin-2", name: "McLovin · Hedge", owner: "McLovin", status: "alive", used: ["Lions", "Eagles"], pick: "Chiefs", confirmed: false },
+  { id: "casual-1", name: "Casual · Main", owner: "Casual", status: "alive", used: ["Bills", "49ers", "Chiefs"], pick: "49ers", confirmed: false },
+  { id: "casual-2", name: "Casual · Longshot", owner: "Casual", status: "alive", used: ["Dolphins"], pick: "Eagles", confirmed: false },
+  { id: "mclovin-3", name: "McLovin · Eliminated", owner: "McLovin", status: "eliminated", used: ["Bills", "Chiefs"], pick: "", confirmed: false },
 ];
 
 const candidates: Candidate[] = [
@@ -106,7 +94,7 @@ const plans: Plan[] = [
     exposure: "4 unique teams",
     future: "Preserves Chiefs for later",
     recommended: true,
-    picks: { "maya-1": "Bills", "maya-2": "Chiefs", "jordan-1": "49ers", "jordan-2": "Eagles" },
+    picks: { "mclovin-1": "Bills", "mclovin-2": "Chiefs", "casual-1": "49ers", "casual-2": "Eagles" },
   },
   {
     id: "anchor",
@@ -116,7 +104,7 @@ const plans: Plan[] = [
     survival: "39.8%",
     exposure: "2 unique teams",
     future: "Spends Chiefs now",
-    picks: { "maya-1": "Bills", "maya-2": "Chiefs", "jordan-1": "Bills", "jordan-2": "Chiefs" },
+    picks: { "mclovin-1": "Bills", "mclovin-2": "Chiefs", "casual-1": "Bills", "casual-2": "Chiefs" },
   },
   {
     id: "quiet",
@@ -126,7 +114,7 @@ const plans: Plan[] = [
     survival: "26.6%",
     exposure: "4 unique teams",
     future: "Preserves Chiefs",
-    picks: { "maya-1": "Bills", "maya-2": "49ers", "jordan-1": "Eagles", "jordan-2": "Ravens" },
+    picks: { "mclovin-1": "Bills", "mclovin-2": "49ers", "casual-1": "Eagles", "casual-2": "Ravens" },
   },
 ];
 
@@ -155,25 +143,61 @@ function SectionHeading({ eyebrow, title, copy, action }: { eyebrow: string; tit
 }
 
 export default function Home() {
-  const [entries, setEntries] = useState<Entry[]>(() => loadWorkspace().entries ?? initialEntries);
-  const [selectedPlan, setSelectedPlan] = useState(() => loadWorkspace().selectedPlan ?? "recommended");
-  const [notes, setNotes] = useState(() => loadWorkspace().notes ?? initialNotes);
+  const [entries, setEntries] = useState<Entry[]>(initialEntries);
+  const [selectedPlan, setSelectedPlan] = useState("recommended");
+  const [notes, setNotes] = useState(initialNotes);
   const [showSetup, setShowSetup] = useState(false);
   const [showRules, setShowRules] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [setup, setSetup] = useState<Setup>(() => loadWorkspace().setup ?? initialSetup);
-  const [activity, setActivity] = useState<string[]>(() => loadWorkspace().activity ?? ["Working board created with manual inputs.", "Recommended portfolio drafted for Week 4."]);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "loading" | "saving" | "saved" | "error">("loading");
+  const [setup, setSetup] = useState<Setup>(initialSetup);
+  const [activity, setActivity] = useState<string[]>(["Working board created with manual inputs.", "Recommended portfolio drafted for Week 4."]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/workspace", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Workspace unavailable");
+        return (await response.json()) as { workspace?: SavedWorkspace };
+      })
+      .then((payload) => {
+        if (cancelled) return;
+        if (!payload.workspace) {
+          setSaveStatus("saved");
+          return;
+        }
+        const workspace = payload.workspace;
+        if (workspace.entries) setEntries(workspace.entries as Entry[]);
+        if (workspace.selectedPlan) setSelectedPlan(workspace.selectedPlan);
+        if (workspace.notes) setNotes(workspace.notes);
+        if (workspace.setup) setSetup(workspace.setup);
+        if (workspace.activity) setActivity(workspace.activity);
+        setSaveStatus("saved");
+      })
+      .catch(() => {
+        if (!cancelled) setSaveStatus("error");
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const aliveEntries = useMemo(() => entries.filter((entry) => entry.status === "alive"), [entries]);
   const unresolved = aliveEntries.filter((entry) => !entry.pick || !entry.confirmed);
   const confirmedCount = aliveEntries.filter((entry) => entry.confirmed).length;
   const activePlan = plans.find((plan) => plan.id === selectedPlan) ?? plans[0];
-  const byOwner = useMemo(() => ({ Maya: aliveEntries.filter((entry) => entry.owner === "Maya"), Jordan: aliveEntries.filter((entry) => entry.owner === "Jordan") }), [aliveEntries]);
+  const byOwner = useMemo(() => ({ McLovin: aliveEntries.filter((entry) => entry.owner === "McLovin"), Casual: aliveEntries.filter((entry) => entry.owner === "Casual") }), [aliveEntries]);
 
-  function saveWorkspace() {
-    window.localStorage.setItem("survivor-pool-strategizer", JSON.stringify({ entries, selectedPlan, notes, setup, activity }));
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 1800);
+  async function saveWorkspace() {
+    setSaveStatus("saving");
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ workspace: { entries, selectedPlan, notes, setup, activity } }),
+      });
+      if (!response.ok) throw new Error("Workspace could not be saved");
+      setSaveStatus("saved");
+    } catch {
+      setSaveStatus("error");
+    }
   }
 
   function applyPlan(plan: Plan) {
@@ -199,9 +223,9 @@ export default function Home() {
           <span>Survivor Pool <em>Strategizer</em></span>
         </a>
         <div className="topbar-actions">
-          <span className="saved-state"><span className="status-dot" /> {saved ? "Saved just now" : "Local workspace"}</span>
-          <button className="button button-secondary" onClick={saveWorkspace}>{saved ? "Saved" : "Save changes"}</button>
-          <button className="avatar" aria-label="Open Maya profile">M</button>
+          <span className="saved-state"><span className={`status-dot ${saveStatus === "error" ? "is-error" : ""}`} /> {saveStatus === "loading" ? "Loading shared workspace" : saveStatus === "saving" ? "Saving shared workspace" : saveStatus === "error" ? "Shared save unavailable" : "Shared workspace"}</span>
+          <button className="button button-secondary" onClick={saveWorkspace} disabled={saveStatus === "saving"}>{saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "Saved" : "Save changes"}</button>
+          <button className="avatar" aria-label="Open McLovin profile">M</button>
         </div>
       </header>
 
@@ -210,7 +234,7 @@ export default function Home() {
           <div className="hero-copy">
             <div className="kicker"><span className="live-dot" /> Shared decision board <span className="kicker-divider">/</span> Week {setup.week}</div>
             <h1>Pick together.<br /><span>Keep one alive.</span></h1>
-            <p>One calm place for Maya and Jordan to coordinate every entry, see the tradeoffs, and make the final call before Splash&apos;s deadline.</p>
+            <p>One calm place for McLovin and Casual to coordinate every entry, see the tradeoffs, and make the final call before Splash&apos;s deadline.</p>
             <div className="hero-actions">
               <a className="button button-primary" href="#strategy">Review strategy <span>↓</span></a>
               <button className="text-button" onClick={() => setShowSetup((open) => !open)}>{showSetup ? "Close setup" : "Edit pool setup"} <span>↗</span></button>
@@ -281,7 +305,7 @@ export default function Home() {
 
         <section className="section-block checklist-section" id="checklist">
           <SectionHeading eyebrow="03 · Submission" title="Finish together." copy="A clear handoff by owner. Confirm only after the pick is submitted on Splash." action={<span className={`unresolved-count ${unresolved.length ? "has-unresolved" : ""}`}>{unresolved.length} unresolved</span>} />
-          <div className="checklist-layout"><div className="owner-columns">{(["Maya", "Jordan"] as Owner[]).map((owner) => <div className="owner-column panel" key={owner}><div className="owner-column-heading"><div><span className={`owner-avatar owner-${owner.toLowerCase()}`}>{owner[0]}</span><h3>{owner}</h3></div><span>{byOwner[owner].filter((entry) => entry.confirmed).length} / {byOwner[owner].length} confirmed</span></div>{byOwner[owner].map((entry) => <label className={`check-row ${entry.confirmed ? "is-confirmed" : ""}`} key={entry.id}><input type="checkbox" checked={entry.confirmed} onChange={() => toggleConfirmation(entry.id)} /><span className="custom-check">✓</span><span className="check-copy"><strong>{entry.name}</strong><span>{entry.pick ? <><TeamBadge team={entry.pick} /> · submit on Splash</> : "Choose a pick first"}</span></span><span className={`check-state ${entry.confirmed ? "done" : "pending"}`}>{entry.confirmed ? "Confirmed" : "Pending"}</span></label>)}</div>)}</div><div className="notes-card panel"><div className="panel-heading"><div><h3>Partner notes</h3><p>Leave the reasoning where both partners can see it.</p></div><span className="note-count">{notes.length}/280</span></div><textarea maxLength={280} value={notes} onChange={(event) => setNotes(event.target.value)} aria-label="Partner notes" /><div className="notes-footer"><span>Last edited by Maya</span><button className="text-button" onClick={saveWorkspace}>Save note ↗</button></div></div></div>
+          <div className="checklist-layout"><div className="owner-columns">{(["McLovin", "Casual"] as Owner[]).map((owner) => <div className="owner-column panel" key={owner}><div className="owner-column-heading"><div><span className={`owner-avatar owner-${owner.toLowerCase()}`}>{owner[0]}</span><h3>{owner}</h3></div><span>{byOwner[owner].filter((entry) => entry.confirmed).length} / {byOwner[owner].length} confirmed</span></div>{byOwner[owner].map((entry) => <label className={`check-row ${entry.confirmed ? "is-confirmed" : ""}`} key={entry.id}><input type="checkbox" checked={entry.confirmed} onChange={() => toggleConfirmation(entry.id)} /><span className="custom-check">✓</span><span className="check-copy"><strong>{entry.name}</strong><span>{entry.pick ? <><TeamBadge team={entry.pick} /> · submit on Splash</> : "Choose a pick first"}</span></span><span className={`check-state ${entry.confirmed ? "done" : "pending"}`}>{entry.confirmed ? "Confirmed" : "Pending"}</span></label>)}</div>)}</div><div className="notes-card panel"><div className="panel-heading"><div><h3>Partner notes</h3><p>Leave the reasoning where both partners can see it.</p></div><span className="note-count">{notes.length}/280</span></div><textarea maxLength={280} value={notes} onChange={(event) => setNotes(event.target.value)} aria-label="Partner notes" /><div className="notes-footer"><span>Shared note · save to sync</span><button className="text-button" onClick={saveWorkspace}>Save note ↗</button></div></div></div>
           <div className="splash-reminder"><span className="warning-ring">!</span><div><strong>Splash is the official record.</strong><span>This tool never submits picks. Each owner must submit and confirm their own entries before {setup.deadline}.</span></div><a href="https://contests.app.splashsports.com/contest/contest_01KZW8ZKAJEKWC44RJKQKE4H9K" target="_blank" rel="noreferrer" className="button button-dark">Open Splash ↗</a></div>
         </section>
 

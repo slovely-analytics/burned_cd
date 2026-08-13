@@ -25,6 +25,8 @@ test("server-renders the Survivor Pool Strategizer workspace", async () => {
   assert.match(html, /<title>Survivor Pool Strategizer<\/title>/i);
   assert.match(html, /Pick together\.<br\/>/i);
   assert.match(html, /Every entry, one view\./i);
+  assert.match(html, /McLovin · Main/i);
+  assert.match(html, /Casual · Main/i);
   assert.match(html, /Make the Week 4 call\./i);
   assert.match(html, /Split the exposure/i);
   assert.match(html, /Splash is the official record\./i);
@@ -32,11 +34,14 @@ test("server-renders the Survivor Pool Strategizer workspace", async () => {
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 
-test("keeps starter preview infrastructure removed and product metadata current", async () => {
-  const [page, layout, packageJson] = await Promise.all([
+test("keeps starter preview infrastructure removed and shared persistence wired", async () => {
+  const [page, layout, packageJson, route, schema, hosting] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
   ]);
 
   assert.doesNotMatch(page, /_sites-preview|SkeletonPreview|codex-preview/i);
@@ -44,6 +49,11 @@ test("keeps starter preview infrastructure removed and product metadata current"
   assert.match(layout, /openGraph/);
   assert.match(layout, /twitter/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
+  assert.match(route, /export async function GET/);
+  assert.match(route, /export async function PUT/);
+  assert.match(schema, /workspace_state/);
+  assert.match(hosting, /"d1": "DB"/);
+  assert.doesNotMatch(page, /localStorage|Local workspace/);
   await assert.rejects(access(new URL("app/_sites-preview/SkeletonPreview.tsx", templateRoot)));
   await assert.rejects(access(new URL("app/_sites-preview/preview.css", templateRoot)));
 });
