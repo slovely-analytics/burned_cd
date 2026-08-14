@@ -29,6 +29,15 @@ import type {
 
 type Owner = "McLovin" | "Casual";
 type EntryStatus = "alive" | "eliminated" | "inactive";
+type WorkspaceTab = "preseason" | "portfolio" | "strategy" | "submission" | "history";
+type SeasonPhase = "preseason" | "in_season";
+
+type PreseasonSettings = {
+  objective: "any_prize" | "prize_share";
+  riskPosture: "balanced" | "protective" | "aggressive";
+  weeklyPromise: string;
+  partnerAgreement: string;
+};
 
 type Entry = {
   id: string;
@@ -73,6 +82,7 @@ type Plan = {
 
 type Setup = {
   poolName: string;
+  seasonPhase: SeasonPhase;
   week: string;
   surviving: string;
   poolSize: string;
@@ -93,9 +103,17 @@ type SavedWorkspace = {
   strategySnapshots?: RecommendationSnapshot[];
   humanDecision?: HumanDecision;
   strategyInput?: StrategyInputPayload;
+  preseason?: PreseasonSettings;
 };
 
-const initialSetup: Setup = { poolName: "Last Survivor · 2026", week: "4", surviving: "4", poolSize: "12", startingPoolEntries: "12", currentLivePoolEntries: "4", ourManagedEntries: "4", ourLiveEntries: "4", deadline: "Sunday at 1:00 PM", outcome: "in_progress" };
+const initialSetup: Setup = { poolName: "Last Survivor · 2026", seasonPhase: "in_season", week: "4", surviving: "4", poolSize: "12", startingPoolEntries: "12", currentLivePoolEntries: "4", ourManagedEntries: "4", ourLiveEntries: "4", deadline: "Sunday at 1:00 PM", outcome: "in_progress" };
+
+const initialPreseason: PreseasonSettings = {
+  objective: "any_prize",
+  riskPosture: "balanced",
+  weeklyPromise: "Protect the joint portfolio first; diversify only when the marginal ruin-risk reduction pays for the weaker pick.",
+  partnerAgreement: "We will review the evidence together, keep the recommendation and any override, and submit manually on Splash.",
+};
 
 const teamColors: Record<string, string> = {
   Bills: "#1f66c2",
@@ -265,6 +283,8 @@ function setupFromStrategyInput(input: StrategyInputPayload, current: Setup): Se
 
 export default function Home() {
   const [entries, setEntries] = useState<Entry[]>(initialEntries);
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialSetup.seasonPhase === "preseason" ? "preseason" : "portfolio");
+  const [preseason, setPreseason] = useState<PreseasonSettings>(initialPreseason);
   const [selectedPlan, setSelectedPlan] = useState("recommended");
   const [notes, setNotes] = useState(initialNotes);
   const [strategyInput, setStrategyInput] = useState<StrategyInputPayload | null>(null);
@@ -302,7 +322,9 @@ export default function Home() {
         }
         if (workspace.selectedPlan) setSelectedPlan(workspace.selectedPlan);
         if (workspace.notes) setNotes(workspace.notes);
-        if (workspace.setup) setSetup({ ...initialSetup, ...workspace.setup, outcome: workspace.setup.outcome ?? "in_progress" });
+        if (workspace.setup) setSetup({ ...initialSetup, ...workspace.setup, seasonPhase: workspace.setup.seasonPhase ?? "in_season", outcome: workspace.setup.outcome ?? "in_progress" });
+        if (workspace.setup?.seasonPhase === "preseason") setActiveTab("preseason");
+        if (workspace.preseason) setPreseason({ ...initialPreseason, ...workspace.preseason });
         if (workspace.activity) setActivity(workspace.activity);
         if (workspace.strategySnapshots) setStrategySnapshots(workspace.strategySnapshots);
         if (workspace.strategyInput) {
@@ -331,6 +353,7 @@ export default function Home() {
 
   const aliveEntries = useMemo(() => entries.filter((entry) => entry.status === "alive"), [entries]);
   const currentWeek = strategyInput?.currentWeek ?? (Number.parseInt(setup.week, 10) || 1);
+  const isPreseason = setup.seasonPhase === "preseason";
   const activeRules = strategyInput?.rules ?? defaultPoolRules;
   const requiredPicks = requiredPicksForWeek(currentWeek, activeRules);
   const pickerTeamOptions = useMemo(() => strategyInput
@@ -487,7 +510,7 @@ export default function Home() {
       const response = await fetch("/api/workspace", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ workspace: { entries, selectedPlan: activePlan.id, notes, setup, activity, strategySnapshots: nextSnapshots, humanDecision, strategyInput } }),
+        body: JSON.stringify({ workspace: { entries, selectedPlan: activePlan.id, notes, setup, activity, strategySnapshots: nextSnapshots, humanDecision, strategyInput, preseason } }),
       });
       if (!response.ok) throw new Error("Workspace could not be saved");
       setStrategySnapshots(nextSnapshots);
@@ -543,6 +566,13 @@ export default function Home() {
           <span className="brand-mark">SP</span>
           <span>Survivor Pool <em>Strategizer</em></span>
         </a>
+        <nav className="section-tabs" aria-label="Workspace sections">
+          <a className={`section-tab ${activeTab === "preseason" ? "is-active" : ""} ${!isPreseason ? "is-locked" : ""}`} href="#preseason" onClick={() => setActiveTab("preseason")} aria-current={activeTab === "preseason" ? "page" : undefined}><span>Pre-season</span>{!isPreseason ? <small>Locked</small> : <small>Start here</small>}</a>
+          <a className={`section-tab ${activeTab === "portfolio" ? "is-active" : ""}`} href="#entries" onClick={() => setActiveTab("portfolio")} aria-current={activeTab === "portfolio" ? "page" : undefined}><span>01 Portfolio</span><small>Entries</small></a>
+          <a className={`section-tab ${activeTab === "strategy" ? "is-active" : ""}`} href="#strategy" onClick={() => setActiveTab("strategy")} aria-current={activeTab === "strategy" ? "page" : undefined}><span>02 Weekly board</span><small>Decide</small></a>
+          <a className={`section-tab ${activeTab === "submission" ? "is-active" : ""}`} href="#checklist" onClick={() => setActiveTab("submission")} aria-current={activeTab === "submission" ? "page" : undefined}><span>03 Submission</span><small>Confirm</small></a>
+          <a className={`section-tab ${activeTab === "history" ? "is-active" : ""}`} href="#history" onClick={() => setActiveTab("history")} aria-current={activeTab === "history" ? "page" : undefined}><span>04 History</span><small>Audit</small></a>
+        </nav>
         <div className="topbar-actions">
           <span className="saved-state"><span className={`status-dot ${saveStatus === "error" || saveStatus === "needs-decision" ? "is-error" : ""}`} /> {saveStatus === "loading" ? "Loading shared workspace" : saveStatus === "saving" ? "Saving shared workspace" : saveStatus === "error" ? "Shared save unavailable" : saveStatus === "needs-decision" ? "Decision reason required" : "Shared workspace"}</span>
           <button className="button button-secondary" onClick={saveWorkspace} disabled={saveStatus === "saving"}>{saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "Saved" : "Save changes"}</button>
@@ -577,6 +607,7 @@ export default function Home() {
               {[["Pool name", "poolName"], ["Week", "week"], ["Starting pool entries", "startingPoolEntries"], ["Current live pool entries", "currentLivePoolEntries"], ["Our managed entries", "ourManagedEntries"], ["Our live entries", "ourLiveEntries"], ["Pick deadline", "deadline"]].map(([label, key]) => (
                 <label className="field" key={key}><span>{label}</span><input value={setup[key as keyof typeof setup]} onChange={(event) => setSetup((current) => ({ ...current, [key]: event.target.value }))} /></label>
               ))}
+              <label className="field"><span>Season phase</span><select value={setup.seasonPhase} onChange={(event) => { const phase = event.target.value as SeasonPhase; setSetup((current) => ({ ...current, seasonPhase: phase })); setActiveTab((current) => phase === "preseason" ? "preseason" : current === "preseason" ? "portfolio" : current); }}><option value="preseason">Pre-season planning</option><option value="in_season">In season</option></select></label>
               <label className="field"><span>Season outcome</span><select value={setup.outcome} onChange={(event) => setSetup((current) => ({ ...current, outcome: event.target.value as Setup["outcome"] }))}><option value="in_progress">In progress</option><option value="joint_eliminated">All joint entries eliminated</option><option value="won_or_shared">Won or shared</option><option value="season_ended">Season ended</option></select></label>
             </div>
             <div className="setup-footer"><span>Contest link remains external and manual.</span><a href="https://contests.app.splashsports.com/contest/contest_01KZW8ZKAJEKWC44RJKQKE4H9K" target="_blank" rel="noreferrer">Open Splash ↗</a></div>
@@ -609,12 +640,59 @@ export default function Home() {
           <div className="summary-item summary-note"><span className="summary-icon warning">!</span><div><span className="summary-label">Next watch</span><strong>Thursday games are eligible</strong></div></div>
         </section>
 
+        <section className={`preseason-section section-block ${!isPreseason ? "is-locked" : ""}`} id="preseason" aria-label="Pre-season strategy playbook">
+          <SectionHeading eyebrow="Pre-season playbook" title="Agree on the game plan before the first kickoff." copy="Start with the shared objective, then build toward the portfolio math. This is the operating agreement that keeps weekly decisions calm, explainable, and coordinated." action={<span className={`phase-badge ${isPreseason ? "phase-active" : "phase-locked"}`}>{isPreseason ? "Active planning window" : "Locked after kickoff"}</span>} />
+          <div className="preseason-overview panel">
+            <div className="preseason-overview-copy"><p className="eyebrow">Executive overview</p><h3>We are not trying to win every week. We are trying to keep at least one jointly managed entry alive long enough to win or share.</h3><p>Each week, we load the evidence, compare whole-portfolio plans, review the tradeoffs, and make the final human call. Splash remains the official record.</p></div>
+            <div className="preseason-objective"><span>Primary objective</span><strong>{preseason.objective === "any_prize" ? "Any joint prize or share" : "Expected prize share"}</strong><small>Expected prize share is reported separately, never hidden inside a single score.</small></div>
+          </div>
+          <div className="preseason-overview-grid">
+            <article className="preseason-card"><span className="preseason-card-number">01</span><h3>Keep the portfolio alive</h3><p>Coordinate all entries together. A different pick is useful only when its diversification benefit justifies the added weekly risk.</p></article>
+            <article className="preseason-card"><span className="preseason-card-number">02</span><h3>Use evidence, not vibes</h3><p>Record source-stamped win probabilities, schedules, popularity, availability, and rule assumptions before treating a plan as calculated.</p></article>
+            <article className="preseason-card"><span className="preseason-card-number">03</span><h3>Keep the decision human</h3><p>Accept, edit, or override the recommendation. Preserve the reason, the final picks, and the eventual result as separate history.</p></article>
+          </div>
+          <div className="strategy-ladder panel">
+            <div className="strategy-ladder-heading"><div><p className="eyebrow">From simple to rigorous</p><h3>How a Sunday decision gets built.</h3></div><span>Five layers, one shared call</span></div>
+            <div className="strategy-ladder-steps">
+              <div><span>01</span><strong>Context</strong><small>Rules, live entries, deadline</small></div><i>→</i>
+              <div><span>02</span><strong>Candidate evidence</strong><small>Win chance, market, popularity</small></div><i>→</i>
+              <div><span>03</span><strong>Portfolio math</strong><small>Shared scenarios and future value</small></div><i>→</i>
+              <div><span>04</span><strong>Tradeoffs</strong><small>Safer, recommended, leverage</small></div><i>→</i>
+              <div><span>05</span><strong>Human lock</strong><small>Submit and confirm on Splash</small></div>
+            </div>
+          </div>
+          <div className="preseason-deep-dive">
+            <article className="math-card panel"><p className="eyebrow">The math underneath</p><h3>One game outcome per scenario.</h3><p>For every simulated world, the same NFL result is applied to every joint and opponent entry. That preserves the real correlation when several entries share a team or game.</p><div className="math-formula"><span>Calibrated win inputs</span><b>+</b><span>Future-team scarcity</span><b>+</b><span>Field popularity</span><b>→</b><strong>Whole-portfolio plan</strong></div><small>Metrics stay explicit: any joint entry survives, all survive, expected entries alive, any win/share, expected prize share, concentration risk, and robustness.</small></article>
+            <article className="math-card panel"><p className="eyebrow">Late-season guardrail</p><h3>Weeks 17 and 18 are two-pick weeks.</h3><p>Both required teams must win, and each entry cannot reuse a team. The planner reserves enough legal combinations from the beginning instead of treating the endgame as an afterthought.</p><div className="math-callout"><strong>Do not spend every premium team early.</strong><span>Future value is entry-specific and depends on the remaining schedule, not a permanent label attached to a team.</span></div></article>
+          </div>
+          <div className="preseason-controls panel">
+            <div className="panel-heading"><div><p className="eyebrow">Planning agreement</p><h3>{isPreseason ? "Set the tone for the season." : "Planning agreement is preserved."}</h3><p>{isPreseason ? "These choices stay editable until the season phase changes to In season." : "The kickoff lock keeps the preseason agreement visible without letting late changes rewrite the operating contract."}</p></div><span className="lock-mark">{isPreseason ? "Open" : "Locked"}</span></div>
+            <fieldset disabled={!isPreseason} className={!isPreseason ? "is-disabled" : ""}>
+              <div className="preseason-form-grid">
+                <label className="field"><span>Primary objective</span><select value={preseason.objective} onChange={(event) => setPreseason((current) => ({ ...current, objective: event.target.value as PreseasonSettings["objective"] }))}><option value="any_prize">Maximize chance of any joint prize</option><option value="prize_share">Maximize expected prize share</option></select></label>
+                <label className="field"><span>Risk posture</span><select value={preseason.riskPosture} onChange={(event) => setPreseason((current) => ({ ...current, riskPosture: event.target.value as PreseasonSettings["riskPosture"] }))}><option value="balanced">Balanced diversification</option><option value="protective">Protect the safest path</option><option value="aggressive">Seek leverage against the field</option></select></label>
+                <label className="field field-wide"><span>Weekly promise</span><input value={preseason.weeklyPromise} onChange={(event) => setPreseason((current) => ({ ...current, weeklyPromise: event.target.value }))} /></label>
+                <label className="field field-wide"><span>Partner agreement</span><textarea value={preseason.partnerAgreement} onChange={(event) => setPreseason((current) => ({ ...current, partnerAgreement: event.target.value }))} /></label>
+              </div>
+            </fieldset>
+            <div className="preseason-controls-footer"><span>{isPreseason ? "Editable before kickoff" : "Inputs locked after kickoff"}</span><button className="button button-secondary" onClick={saveWorkspace} disabled={!isPreseason || saveStatus === "saving"}>Save planning choices</button></div>
+          </div>
+        </section>
+
         <section className="section-block" id="entries">
           <SectionHeading eyebrow="01 · Portfolio" title="Every entry, one view." copy="Track ownership, past teams, and this week&apos;s working pick without opening a spreadsheet." action={<button className="text-button" onClick={() => setShowSetup(true)}>Pool settings ↗</button>} />
+          <div className="owner-metric-strip" aria-label="Owner portfolio metrics">
+            {(["McLovin", "Casual"] as Owner[]).map((owner) => {
+              const ownerEntries = entries.filter((entry) => entry.owner === owner);
+              const ownerAlive = ownerEntries.filter((entry) => entry.status === "alive").length;
+              const ownerConfirmed = ownerEntries.filter((entry) => entry.status === "alive" && entry.confirmed && (entryIssues.get(entry.id)?.length ?? 0) === 0).length;
+              return <div className={`owner-metric-card owner-metric-${owner.toLowerCase()}`} key={owner}><div className="owner-metric-heading"><span className={`owner-avatar owner-${owner.toLowerCase()}`}>{owner[0]}</span><div><span className="eyebrow">{owner}</span><strong>{ownerAlive} live entries</strong></div></div><div className="owner-metric-values"><span><small>Managed</small><b>{ownerEntries.length}</b></span><span><small>Confirmed</small><b>{ownerConfirmed}/{ownerAlive}</b></span><span><small>Exposure</small><b>{ownerAlive ? `${Math.round((ownerAlive / Math.max(1, aliveEntries.length)) * 100)}%` : "0%"}</b></span></div></div>;
+            })}
+          </div>
           <div className="entry-grid">
             {entries.map((entry) => (
               <article className={`entry-card ${entry.status !== "alive" ? "is-inactive" : ""}`} key={entry.id}>
-                <div className="entry-card-top"><div><div className="entry-name">{entry.name}</div><div className="owner-label"><span className={`owner-avatar owner-${entry.owner.toLowerCase()}`}>{entry.owner[0]}</span>{entry.owner} owns this entry</div></div><span className={`status-pill status-${entry.status}`}>{entry.status}</span></div>
+                <div className="entry-card-top"><div><div className="entry-name">{entry.name}</div></div><span className={`status-pill status-${entry.status}`}>{entry.status}</span></div>
                 <div className="history-label">Used by week</div>
                 <div className="history-row">{entry.used.map((team, index) => <span className="history-chip" key={`${team}-${index}`}><span>W{index + 1}</span><TeamBadge team={team} muted /></span>)}{entry.status === "alive" ? <span className="history-chip history-empty"><span>Next</span><span className="team-badge-list">{entry.picks.length ? entry.picks.map((pick) => <TeamBadge team={pick} key={pick} />) : <TeamBadge team="Open" />}</span></span> : null}</div>
                 {entry.status === "alive" ? <div className="entry-pick-row"><label>{requiredPicks === 1 ? "Working pick" : `${requiredPicks} distinct teams`}</label><span className="pick-select-list">{Array.from({ length: requiredPicks }, (_, pickIndex) => { const currentPick = entry.picks[pickIndex] ?? ""; const currentIssue = pickerSelectionIssue(currentPick, { usedTeams: entry.used, picks: entry.picks }, pickIndex, pickerTeamOptions, currentWeek); return <select id={`pick-${entry.id}-${pickIndex}`} key={`${entry.id}-${pickIndex}`} value={currentPick} onChange={(event) => updatePick(entry.id, pickIndex, event.target.value)} aria-label={`${entry.name} pick ${pickIndex + 1}`} aria-invalid={Boolean(currentIssue)} className={currentIssue ? "is-unresolved" : undefined}><option value="">Choose team {pickIndex + 1}</option>{pickerOptionsForEntry(pickerTeamOptions, { usedTeams: entry.used, picks: entry.picks }, pickIndex, currentWeek).map((option) => <option value={option.team} key={option.team} disabled={Boolean(option.unresolvedReason)}>{option.team}{option.unresolvedReason ? ` — ${option.unresolvedReason}` : ""}</option>)}</select> })}</span></div> : <div className="inactive-note">No further picks — keep for history.</div>}
@@ -651,7 +729,7 @@ export default function Home() {
           <div className="splash-reminder"><span className="warning-ring">!</span><div><strong>Splash is the official record.</strong><span>This tool never submits picks. Each owner must submit and confirm their own entries before {setup.deadline}.</span></div><a href="https://contests.app.splashsports.com/contest/contest_01KZW8ZKAJEKWC44RJKQKE4H9K" target="_blank" rel="noreferrer" className="button button-dark">Open Splash ↗</a></div>
         </section>
 
-        <section className="history-section section-block"><SectionHeading eyebrow="04 · History" title="A small audit trail." copy="Enough context to understand what changed after the season moves on." /><div className="history-panel panel"><div className="history-log">{activity.map((item, index) => <div className="activity-row" key={`${item}-${index}`}><span className="activity-dot" /><span>{item}</span><time>{index === 0 ? "just now" : `${index}h ago`}</time></div>)}</div><div className="history-summary"><span>Week {setup.week} working board</span><strong>{confirmedCount} of {aliveEntries.length} picks confirmed</strong><span>Manual inputs only</span></div></div></section>
+        <section className="history-section section-block" id="history"><SectionHeading eyebrow="04 · History" title="A small audit trail." copy="Enough context to understand what changed after the season moves on." /><div className="history-panel panel"><div className="history-log">{activity.map((item, index) => <div className="activity-row" key={`${item}-${index}`}><span className="activity-dot" /><span>{item}</span><time>{index === 0 ? "just now" : `${index}h ago`}</time></div>)}</div><div className="history-summary"><span>Week {setup.week} working board</span><strong>{confirmedCount} of {aliveEntries.length} picks confirmed</strong><span>Manual inputs only</span></div></div></section>
 
         <footer className="footer"><span>Survivor Pool Strategizer</span><span>Built for two partners · decisions stay human</span><span>Private workspace</span></footer>
       </div>

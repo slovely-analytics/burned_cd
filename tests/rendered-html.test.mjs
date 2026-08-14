@@ -120,6 +120,10 @@ test("server-renders the Survivor Pool Strategizer workspace", async () => {
   assert.match(html, /<title>Survivor Pool Strategizer<\/title>/i);
   assert.match(html, /Pick together\.<br\/>/i);
   assert.match(html, /Every entry, one view\./i);
+  assert.match(html, /Pre-season playbook/i);
+  assert.match(html, /Executive overview/i);
+  assert.match(html, /Locked after kickoff/i);
+  assert.match(html, /Owner portfolio metrics/i);
   assert.match(html, /McLovin · Main/i);
   assert.match(html, /Casual · Main/i);
   assert.match(html, /Make the Week 4 call\./i);
@@ -129,6 +133,7 @@ test("server-renders the Survivor Pool Strategizer workspace", async () => {
   assert.match(html, /Split the exposure/i);
   assert.match(html, /Splash is the official record\./i);
   assert.match(html, /This tool never submits picks\./i);
+  assert.doesNotMatch(html, /owns this entry/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 
