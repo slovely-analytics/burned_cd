@@ -13,6 +13,7 @@ type WorkspacePayload = {
   strategySnapshots?: unknown[];
   humanDecision?: unknown;
   strategyInput?: unknown;
+  preseason?: unknown;
 };
 
 function toRouteErrorMessage(error: unknown) {
