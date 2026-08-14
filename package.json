@@ -9,7 +9,9 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "docs:check": "node --test tests/research-doc.test.mjs",
+    "strategy:check": "node --experimental-strip-types --test tests/strategy-rules.test.mjs tests/portfolio-simulator.test.mjs tests/strategy-inputs.test.mjs",
+    "test": "npm run docs:check && npm run strategy:check && npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },

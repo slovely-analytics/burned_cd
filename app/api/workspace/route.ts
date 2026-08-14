@@ -10,6 +10,9 @@ type WorkspacePayload = {
   notes: string;
   setup: Record<string, string>;
   activity: string[];
+  strategySnapshots?: unknown[];
+  humanDecision?: unknown;
+  strategyInput?: unknown;
 };
 
 function toRouteErrorMessage(error: unknown) {

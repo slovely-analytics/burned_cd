@@ -60,6 +60,9 @@ test("server-renders the Survivor Pool Strategizer workspace", async () => {
   assert.match(html, /McLovin · Main/i);
   assert.match(html, /Casual · Main/i);
   assert.match(html, /Make the Week 4 call\./i);
+  assert.match(html, /Enter or import the week/i);
+  assert.match(html, /Manual strategy input JSON/i);
+  assert.match(html, /Import JSON file/i);
   assert.match(html, /Split the exposure/i);
   assert.match(html, /Splash is the official record\./i);
   assert.match(html, /This tool never submits picks\./i);

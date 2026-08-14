@@ -1,0 +1,166 @@
+{
+  "fixturePurpose": "test-only; not live contest data",
+  "season": 2026,
+  "currentWeek": 4,
+  "seasonEndWeek": 4,
+  "rules": {
+    "season": 2026,
+    "normalPicksPerWeek": 1,
+    "picksRequiredByWeek": { "17": 2, "18": 2 },
+    "distinctTeamsPerEntry": true,
+    "distinctGamesInMultiPickWeek": "configured",
+    "tiesCountAs": "loss",
+    "pickDeadline": "Sunday at 1:00 PM",
+    "postponedGameReplacement": "unresolved",
+    "missingPickDefault": "unresolved",
+    "allEntriesLoseSettlement": "configured",
+    "allEntriesLoseOutcome": "no_winner",
+    "splashIsOfficialRecord": true
+  },
+  "pool": {
+    "startingPoolEntryCount": 10,
+    "currentLivePoolEntryCount": 4,
+    "ourManagedEntryCount": 2,
+    "ourLiveEntryCount": 2,
+    "source": {
+      "source": "test-fixture",
+      "observedAt": "2026-08-13T12:00:00.000Z",
+      "method": "deterministic-browser-validation"
+    }
+  },
+  "ourEntries": [
+    { "id": "our-1", "name": "Test Partner A", "owner": "McLovin", "usedTeams": ["Ravens"], "alive": true },
+    { "id": "our-2", "name": "Test Partner B", "owner": "Casual", "usedTeams": ["Packers"], "alive": true }
+  ],
+  "candidates": [
+    {
+      "team": "Bills",
+      "opponent": "Jets",
+      "kickoff": "2026-09-27T13:00:00.000Z",
+      "winProbability": 0.72,
+      "popularity": 0.31,
+      "dataStatus": "manual",
+      "source": {
+        "source": "test-fixture",
+        "observedAt": "2026-08-13T12:00:00.000Z",
+        "method": "deterministic-browser-validation"
+      }
+    },
+    {
+      "team": "49ers",
+      "opponent": "Rams",
+      "kickoff": "2026-09-27T16:25:00.000Z",
+      "winProbability": 0.64,
+      "popularity": 0.18,
+      "dataStatus": "manual",
+      "source": {
+        "source": "test-fixture",
+        "observedAt": "2026-08-13T12:00:00.000Z",
+        "method": "deterministic-browser-validation"
+      }
+    },
+    {
+      "team": "Eagles",
+      "opponent": "Giants",
+      "kickoff": "2026-09-27T20:20:00.000Z",
+      "winProbability": 0.61,
+      "popularity": 0.12,
+      "dataStatus": "manual",
+      "source": {
+        "source": "test-fixture",
+        "observedAt": "2026-08-13T12:00:00.000Z",
+        "method": "deterministic-browser-validation"
+      }
+    }
+  ],
+  "weeks": [
+    {
+      "week": 4,
+      "games": [
+        {
+          "id": "week-4-bills-jets",
+          "week": 4,
+          "homeTeam": "Bills",
+          "awayTeam": "Jets",
+          "kickoff": "2026-09-27T13:00:00.000Z",
+          "homeWinProbability": 0.72,
+          "awayWinProbability": 0.27,
+          "tieProbability": 0.01,
+          "source": {
+            "source": "test-fixture",
+            "observedAt": "2026-08-13T12:00:00.000Z",
+            "method": "deterministic-browser-validation"
+          }
+        },
+        {
+          "id": "week-4-49ers-rams",
+          "week": 4,
+          "homeTeam": "49ers",
+          "awayTeam": "Rams",
+          "kickoff": "2026-09-27T16:25:00.000Z",
+          "homeWinProbability": 0.64,
+          "awayWinProbability": 0.35,
+          "tieProbability": 0.01,
+          "source": {
+            "source": "test-fixture",
+            "observedAt": "2026-08-13T12:00:00.000Z",
+            "method": "deterministic-browser-validation"
+          }
+        },
+        {
+          "id": "week-4-eagles-giants",
+          "week": 4,
+          "homeTeam": "Eagles",
+          "awayTeam": "Giants",
+          "kickoff": "2026-09-27T20:20:00.000Z",
+          "homeWinProbability": 0.61,
+          "awayWinProbability": 0.38,
+          "tieProbability": 0.01,
+          "source": {
+            "source": "test-fixture",
+            "observedAt": "2026-08-13T12:00:00.000Z",
+            "method": "deterministic-browser-validation"
+          }
+        }
+      ]
+    }
+  ],
+  "opponentField": {
+    "entryCount": 2,
+    "source": {
+      "source": "test-fixture",
+      "observedAt": "2026-08-13T12:00:00.000Z",
+      "method": "deterministic-browser-validation"
+    },
+    "pickDistributionByWeek": {
+      "4": { "Jets": 0.7, "Rams": 0.3 }
+    }
+  },
+  "plans": [
+    {
+      "id": "recommended",
+      "label": "recommended",
+      "title": "Test anchor",
+      "description": "Test-only concentrated plan for browser validation.",
+      "assumptions": ["Test fixture only; no future scarcity input supplied."],
+      "picksByEntry": { "our-1": ["Bills"], "our-2": ["Bills"] }
+    },
+    {
+      "id": "safer",
+      "label": "safer",
+      "title": "Test split",
+      "description": "Test-only diversified plan for browser validation.",
+      "picksByEntry": { "our-1": ["Bills"], "our-2": ["49ers"] }
+    },
+    {
+      "id": "leverage",
+      "label": "leverage",
+      "title": "Test leverage",
+      "description": "Test-only lower-popularity plan for browser validation.",
+      "picksByEntry": { "our-1": ["49ers"], "our-2": ["Eagles"] }
+    }
+  ],
+  "simulations": 200,
+  "seed": 20260813,
+  "modelVersion": "browser-validation-fixture-1"
+}
