@@ -8,6 +8,13 @@
       "when": 1786631415809,
       "tag": "0000_high_sunspot",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1786680675138,
+      "tag": "0001_powerful_lord_hawal",
+      "breakpoints": true
     }
   ]
 }

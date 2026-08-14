@@ -4,9 +4,58 @@ import test from "node:test";
 
 const templateRoot = new URL("../", import.meta.url);
 const testPassword = "Maple Sunday Keeps One Alive 27!";
+const partnerPassword = "McLovin Secure Pass 27!";
+
+function createAuthDatabase() {
+  const accounts = new Map([
+    ["mclovin", { id: "mclovin", display_name: "McLovin", password_hash: null, failed_attempts: 0, locked_until: null }],
+    ["casual", { id: "casual", display_name: "Casual", password_hash: null, failed_attempts: 0, locked_until: null }],
+  ]);
+  const sessions = new Map();
+
+  return {
+    prepare(sql) {
+      return {
+        bind(...values) {
+          return {
+            async first() {
+              if (sql.includes("FROM partner_accounts WHERE id")) return accounts.get(values[0]);
+              if (sql.includes("FROM partner_sessions WHERE token_hash")) return sessions.get(values[0]);
+              return undefined;
+            },
+            async all() {
+              return { results: [...accounts.values()] };
+            },
+            async run() {
+              if (sql.startsWith("INSERT INTO partner_accounts")) {
+                accounts.set(values[0], { id: values[0], display_name: values[1], password_hash: null, failed_attempts: 0, locked_until: null });
+              } else if (sql.startsWith("UPDATE partner_accounts SET password_hash")) {
+                accounts.get(values[1]).password_hash = values[0];
+              } else if (sql.startsWith("UPDATE partner_accounts SET failed_attempts = 0")) {
+                const account = accounts.get(values[1]);
+                account.failed_attempts = 0;
+                account.locked_until = null;
+              } else if (sql.startsWith("UPDATE partner_accounts SET failed_attempts =")) {
+                const account = accounts.get(values[2]);
+                account.failed_attempts = values[0];
+                account.locked_until = values[1];
+              } else if (sql.startsWith("INSERT INTO partner_sessions")) {
+                sessions.set(values[0], { partner_id: values[1], expires_at: values[2] });
+              } else if (sql.startsWith("DELETE FROM partner_sessions")) {
+                sessions.delete(values[0]);
+              }
+              return { success: true, meta: { changes: 1 } };
+            },
+          };
+        },
+      };
+    },
+  };
+}
 
 const testEnv = {
   SURVIVOR_POOL_PASSWORD: testPassword,
+  DB: createAuthDatabase(),
   ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
 };
 
@@ -21,18 +70,29 @@ async function loadWorker() {
 async function render() {
   const worker = await loadWorker();
   const accessResponse = await worker.fetch(
-    new Request("http://localhost/api/access", {
+    new Request("http://localhost/api/auth/setup", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ password: testPassword }),
+      body: JSON.stringify({ partner: "mclovin", password: partnerPassword, confirmPassword: partnerPassword, bootstrap: testPassword }),
     }),
     testEnv,
     testContext,
   );
   assert.equal(accessResponse.status, 200);
 
+  const loginResponse = await worker.fetch(
+    new Request("http://localhost/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ partner: "mclovin", password: partnerPassword }),
+    }),
+    testEnv,
+    testContext,
+  );
+  assert.equal(loginResponse.status, 200);
+
   return worker.fetch(
-    new Request("http://localhost/", { headers: { accept: "text/html", cookie: accessResponse.headers.get("set-cookie") ?? "" } }),
+    new Request("http://localhost/", { headers: { accept: "text/html", cookie: loginResponse.headers.get("set-cookie") ?? "" } }),
     testEnv,
     testContext,
   );
@@ -44,7 +104,10 @@ test("requires the shared passphrase before rendering the workspace", async () =
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /Private shared workspace/i);
-  assert.match(html, /Enter workspace/i);
+  assert.match(html, /Partner account/i);
+  assert.match(html, />McLovin<\/option>/i);
+  assert.match(html, />Casual<\/option>/i);
+  assert.match(html, /Set first password/i);
   assert.doesNotMatch(html, /Every entry, one view\./i);
 });
 
@@ -70,12 +133,13 @@ test("server-renders the Survivor Pool Strategizer workspace", async () => {
 });
 
 test("keeps starter preview infrastructure removed and shared persistence wired", async () => {
-  const [page, layout, packageJson, route, schema, hosting] = await Promise.all([
+  const [page, layout, packageJson, route, schema, auth, hosting] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../worker/auth.ts", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
   ]);
 
@@ -87,12 +151,15 @@ test("keeps starter preview infrastructure removed and shared persistence wired"
   assert.match(route, /export async function GET/);
   assert.match(route, /export async function PUT/);
   assert.match(schema, /workspace_state/);
+  assert.match(schema, /partner_accounts/);
+  assert.match(schema, /partner_sessions/);
   assert.match(hosting, /"d1": "DB"/);
   assert.doesNotMatch(page, /localStorage|Local workspace/);
   const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
   assert.match(worker, /SURVIVOR_POOL_PASSWORD/);
-  assert.match(worker, /accessToken/);
-  assert.match(worker, /survivor_pool_access/);
+  assert.match(worker, /sessionPartnerId/);
+  assert.match(auth, /PBKDF2/);
+  assert.match(auth, /Set first password/);
   await assert.rejects(access(new URL("app/_sites-preview/SkeletonPreview.tsx", templateRoot)));
   await assert.rejects(access(new URL("app/_sites-preview/preview.css", templateRoot)));
 });
