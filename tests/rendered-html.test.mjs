@@ -15,7 +15,7 @@ function createAuthDatabase() {
 
   return {
     prepare(sql) {
-      return {
+      const statement = {
         bind(...values) {
           return {
             async first() {
@@ -49,6 +49,8 @@ function createAuthDatabase() {
           };
         },
       };
+      statement.run = async () => ({ success: true, meta: { changes: 0 } });
+      return statement;
     },
   };
 }

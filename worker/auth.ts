@@ -30,6 +30,42 @@ const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 const PASSWORD_ITERATIONS = 120_000;
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
+const authStorageInitialization = new WeakMap<D1Database, Promise<void>>();
+
+async function ensureAuthStorage(env: AuthEnv) {
+  const existing = authStorageInitialization.get(env.DB);
+  if (existing) return existing;
+
+  const initialization = (async () => {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS partner_accounts (
+      id TEXT PRIMARY KEY NOT NULL,
+      display_name TEXT NOT NULL,
+      password_hash TEXT,
+      failed_attempts INTEGER DEFAULT 0 NOT NULL,
+      locked_until TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      last_login_at TEXT
+    )`).run();
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS partner_sessions (
+      token_hash TEXT PRIMARY KEY NOT NULL,
+      partner_id TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      expires_at TEXT NOT NULL
+    )`).run();
+    for (const partner of PARTNERS) {
+      await env.DB.prepare(
+        "INSERT OR IGNORE INTO partner_accounts (id, display_name) VALUES (?1, ?2)",
+      ).bind(partner.id, partner.displayName).run();
+    }
+  })();
+  authStorageInitialization.set(env.DB, initialization);
+  try {
+    return await initialization;
+  } catch (error) {
+    authStorageInitialization.delete(env.DB);
+    throw error;
+  }
+}
 
 function json(data: Record<string, unknown>, init: ResponseInit = {}) {
   const headers = new Headers(init.headers);
@@ -125,12 +161,14 @@ async function requestBody(request: Request) {
 }
 
 async function findAccount(env: AuthEnv, partner: PartnerId) {
+  await ensureAuthStorage(env);
   return env.DB.prepare(
     "SELECT id, display_name, password_hash, failed_attempts, locked_until FROM partner_accounts WHERE id = ?1",
   ).bind(partner).first<PartnerAccount>();
 }
 
 async function newSession(env: AuthEnv, partner: PartnerId) {
+  await ensureAuthStorage(env);
   const token = randomHex(32);
   const tokenHash = await sha256Hex(`session:${token}`);
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1000).toISOString();
@@ -141,6 +179,7 @@ async function newSession(env: AuthEnv, partner: PartnerId) {
 }
 
 export async function sessionPartnerId(request: Request, env: AuthEnv) {
+  await ensureAuthStorage(env);
   const token = cookieValue(request);
   if (!token) return null;
   const tokenHash = await sha256Hex(`session:${token}`);
@@ -170,6 +209,7 @@ setupForm.addEventListener('submit',async(event)=>{event.preventDefault();setupE
 
 async function statusRoute(env: AuthEnv) {
   try {
+    await ensureAuthStorage(env);
     const result = await env.DB.prepare(
       "SELECT id, display_name, password_hash FROM partner_accounts ORDER BY id",
     ).all<{ id: PartnerId; display_name: string; password_hash: string | null }>();
